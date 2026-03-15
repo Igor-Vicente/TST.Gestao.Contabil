@@ -10,7 +10,7 @@ using System.IdentityModel.Tokens.Jwt;
 
 namespace ERP.GC.Presentation.Controllers
 {
-    //[Authorize]
+    [Authorize]
     [ApiController]
     [Route("api/v1/registro")]
     public class RegistroController : ControllerBase
