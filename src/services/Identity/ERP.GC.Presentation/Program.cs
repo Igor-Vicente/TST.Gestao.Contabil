@@ -10,6 +10,7 @@ namespace ERP.GC.Presentation
 
             builder.Services.AddIdentityConfig(builder.Configuration);
             builder.Services.AddAuthenticationConfig(builder.Configuration);
+            builder.Services.AddAuthorizationConfig();
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddDependencies();

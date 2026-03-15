@@ -1,4 +1,5 @@
-﻿using ERP.GC.Presentation.Configuration;
+using ERP.GC.Presentation.Configuration;
+using ERP.GC.Presentation.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -10,24 +11,24 @@ namespace ERP.GC.Presentation.Services
 {
     public interface IAuthenticationService
     {
-        SignInManager<IdentityUser<int>> SignInManager { get; }
-        UserManager<IdentityUser<int>> UserManager { get; }
+        SignInManager<Usuario> SignInManager { get; }
+        UserManager<Usuario> UserManager { get; }
 
-        Task<string> GenerateAccessTokenAsync(IdentityUser<int> user);
-        Task<string> GenerateRefreshTokenAsync(IdentityUser<int> user);
+        Task<string> GenerateAccessTokenAsync(Usuario user);
+        Task<string> GenerateRefreshTokenAsync(Usuario user);
         bool ValidateRefreshToken(string refreshToken, out JwtSecurityToken validatedToken);
     }
 
 
     public class AuthenticationService : IAuthenticationService
     {
-        public SignInManager<IdentityUser<int>> SignInManager { get; }
-        public UserManager<IdentityUser<int>> UserManager { get; }
+        public SignInManager<Usuario> SignInManager { get; }
+        public UserManager<Usuario> UserManager { get; }
 
         private readonly JwtConfigSettings _JwtConfigSettings;
 
-        public AuthenticationService(SignInManager<IdentityUser<int>> signInManager,
-                                     UserManager<IdentityUser<int>> userManager,
+        public AuthenticationService(SignInManager<Usuario> signInManager,
+                                     UserManager<Usuario> userManager,
                                      IOptions<JwtConfigSettings> jwtConfigSettings)
         {
             SignInManager = signInManager;
@@ -35,15 +36,17 @@ namespace ERP.GC.Presentation.Services
             _JwtConfigSettings = jwtConfigSettings.Value;
         }
 
-        public async Task<string> GenerateAccessTokenAsync(IdentityUser<int> user)
+        public async Task<string> GenerateAccessTokenAsync(Usuario usuario)
         {
-            var claims = await UserManager.GetClaimsAsync(user);
+            var claims = await UserManager.GetClaimsAsync(usuario);
 
-            claims.Add(new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()));
-            claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
+            claims.Add(new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()));
+            claims.Add(new Claim(JwtRegisteredClaimNames.Email, usuario.Email));
             claims.Add(new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()));
             claims.Add(new Claim(JwtRegisteredClaimNames.Nbf, ToUnixEpochDate(DateTime.UtcNow).ToString()));
             claims.Add(new Claim(JwtRegisteredClaimNames.Iat, ToUnixEpochDate(DateTime.UtcNow).ToString(), ClaimValueTypes.Integer64));
+            claims.Add(new Claim("cargo", usuario.Cargo.ToString()));
+            claims.Add(new Claim("empresaId", usuario.EmpresaId.ToString()));
 
             var tokenHandler = new JwtSecurityTokenHandler();
 
@@ -62,13 +65,13 @@ namespace ERP.GC.Presentation.Services
             return tokenHandler.WriteToken(token);
         }
 
-        public async Task<string> GenerateRefreshTokenAsync(IdentityUser<int> user)
+        public async Task<string> GenerateRefreshTokenAsync(Usuario usuario)
         {
             var jti = Guid.NewGuid().ToString();
 
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),
+                new Claim(JwtRegisteredClaimNames.Email, usuario.Email),
                 new Claim(JwtRegisteredClaimNames.Jti, jti)
             };
 
@@ -85,7 +88,7 @@ namespace ERP.GC.Presentation.Services
                 TokenType = "rt+jwt"
             });
 
-            await UpdateLastGeneratedRtClaim(user, jti);
+            await UpdateLastGeneratedRtClaim(usuario, jti);
             return tokenHandler.WriteToken(token);
         }
 
@@ -112,17 +115,17 @@ namespace ERP.GC.Presentation.Services
             }
         }
 
-        private async Task UpdateLastGeneratedRtClaim(IdentityUser<int> user, string jti)
+        private async Task UpdateLastGeneratedRtClaim(Usuario usuario, string jti)
         {
-            var claims = await UserManager.GetClaimsAsync(user);
+            var claims = await UserManager.GetClaimsAsync(usuario);
             var newLastRtClaim = new Claim("lastRefreshToken", jti);
 
             var claimLastRt = claims.FirstOrDefault(f => f.Type == "lastRefreshToken");
 
             if (claimLastRt != null)
-                await UserManager.ReplaceClaimAsync(user, claimLastRt, newLastRtClaim);
+                await UserManager.ReplaceClaimAsync(usuario, claimLastRt, newLastRtClaim);
             else
-                await UserManager.AddClaimAsync(user, newLastRtClaim);
+                await UserManager.AddClaimAsync(usuario, newLastRtClaim);
         }
 
         private SigningCredentials GetCurrentSigningCredentials()

@@ -12,9 +12,6 @@ namespace ERP.GC.Presentation.Data.Mappings
 
             builder.HasKey(e => e.Id);
 
-            builder.Property(e => e.Id)
-               .ValueGeneratedNever();
-
             builder.Property(e => e.Nome)
                 .IsRequired()
                 .HasMaxLength(150);
@@ -33,6 +30,11 @@ namespace ERP.GC.Presentation.Data.Mappings
             builder.Property(u => u.CriadoEm)
                 .IsRequired()
                 .HasDefaultValueSql("GETUTCDATE()");
+
+            builder.Property(u => u.Cargo)
+              .IsRequired()
+              .HasConversion<string>()   // armazena o nome do enum, ex: "Colaborador"
+              .HasMaxLength(20);
         }
     }
 }

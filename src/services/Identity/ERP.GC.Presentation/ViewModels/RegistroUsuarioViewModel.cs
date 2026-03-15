@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using ERP.GC.Presentation.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace ERP.GC.Presentation.ViewModels
 {
@@ -9,6 +10,9 @@ namespace ERP.GC.Presentation.ViewModels
 
         [Required]
         public int EmpresaId { get; set; }
+
+        [Required]
+        public Cargo Cargo { get; set; }
 
         [Required]
         [EmailAddress]

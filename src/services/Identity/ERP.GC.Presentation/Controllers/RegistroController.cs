@@ -1,17 +1,16 @@
-﻿using ERP.GC.Presentation.Abstractions;
+using ERP.GC.Presentation.Abstractions;
 using ERP.GC.Presentation.Commands;
+using ERP.GC.Presentation.Models;
 using ERP.GC.Presentation.Services;
 using ERP.GC.Presentation.ViewModels;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
-using static ERP.GC.Presentation.Configuration.CustomAuthorize;
 
 namespace ERP.GC.Presentation.Controllers
 {
-    [Authorize]
+    //[Authorize]
     [ApiController]
     [Route("api/v1/registro")]
     public class RegistroController : ControllerBase
@@ -37,11 +36,11 @@ namespace ERP.GC.Presentation.Controllers
 
             if (result.Succeeded)
             {
-                var identityUser = await _authenticationService.UserManager.FindByEmailAsync(model.Email);
-                var accessToken = await _authenticationService.GenerateAccessTokenAsync(identityUser);
-                var refreshToken = await _authenticationService.GenerateRefreshTokenAsync(identityUser);
+                var usuario = await _authenticationService.UserManager.FindByEmailAsync(model.Email);
+                var accessToken = await _authenticationService.GenerateAccessTokenAsync(usuario);
+                var refreshToken = await _authenticationService.GenerateRefreshTokenAsync(usuario);
 
-                return Ok(new { ac = accessToken, rf = refreshToken, email = identityUser.Email });
+                return Ok(new { ac = accessToken, rf = refreshToken, email = usuario.Email });
             }
 
             if (result.IsLockedOut)
@@ -79,34 +78,47 @@ namespace ERP.GC.Presentation.Controllers
 
 
         [HttpPost("usuario")]
-        [ClaimsAuthorize("isAdmin", "true")]
+        [Authorize(Policy = "PodeCriarUsuario")]
         public async Task<IActionResult> RegistroUsuario(RegistroUsuarioViewModel model)
         {
-            var identityUser = new IdentityUser<int> { Email = model.Email, UserName = model.Email };
+            var cargoClaim = User.FindFirst("cargo")?.Value;
+            var empresaIdClaim = User.FindFirst("empresaId")?.Value;
 
-            var result = await _authenticationService.UserManager.CreateAsync(identityUser, model.Senha);
+            // Gestor só pode criar usuários para a própria empresa e não pode criar AdministradorGeral.
+            if (string.Equals(cargoClaim, Cargo.Gestor.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                if (model.Cargo == Cargo.AdministradorGeral)
+                    return Forbid();
+
+                if (int.TryParse(empresaIdClaim, out var minhaEmpresaId) && model.EmpresaId != minhaEmpresaId)
+                    return Forbid();
+            }
+
+            var usuario = new Usuario
+            {
+                Nome = model.Nome,
+                EmpresaId = model.EmpresaId,
+                Cargo = model.Cargo,
+                Ativo = true,
+                CriadoEm = DateTime.UtcNow,
+                Email = model.Email,
+                UserName = model.Email
+            };
+
+            var result = await _authenticationService.UserManager.CreateAsync(usuario, model.Senha);
 
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
 
-            var usuario = await _mediator.Send(
-                new AdicionarUsuarioCommand(identityUser.Id, model.Nome, identityUser.Email, model.EmpresaId));
-
-            if (_notificador.TemNotificacoes())
-            {
-                await _authenticationService.UserManager.DeleteAsync(identityUser);
-                return BadRequest(_notificador.ObterNotificacoes());
-            }
-
-            var accessToken = await _authenticationService.GenerateAccessTokenAsync(identityUser);
-            var refreshToken = await _authenticationService.GenerateRefreshTokenAsync(identityUser);
+            var accessToken = await _authenticationService.GenerateAccessTokenAsync(usuario);
+            var refreshToken = await _authenticationService.GenerateRefreshTokenAsync(usuario);
 
             return Ok(new { ac = accessToken, rf = refreshToken, email = usuario.Email });
         }
 
 
         [HttpPost("empresa")]
-        [ClaimsAuthorize("isAdmin", "true")]
+        [Authorize(Policy = "PodeCriarEmpresa")]
         public async Task<IActionResult> RegistroEmpresa(RegistroEmpresaViewModel model)
         {
             var empresa = await _mediator.Send(

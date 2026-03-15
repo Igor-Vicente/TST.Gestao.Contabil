@@ -7,9 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ERP.GC.Presentation.Data
 {
-    public class AuthDbContext : IdentityDbContext<IdentityUser<int>, IdentityRole<int>, int>, IUnitOfWork
+    public class AuthDbContext : IdentityDbContext<Usuario, IdentityRole<int>, int>, IUnitOfWork
     {
-        public DbSet<Usuario> Usuarios { get; set; }
         public DbSet<Empresa> Empresas { get; set; }
         public AuthDbContext(DbContextOptions options) : base(options)
         {

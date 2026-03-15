@@ -1,4 +1,4 @@
-﻿using ERP.GC.Presentation.Abstractions;
+using ERP.GC.Presentation.Abstractions;
 using ERP.GC.Presentation.Commands;
 using ERP.GC.Presentation.Commands.Handlers;
 using ERP.GC.Presentation.Data;
@@ -7,6 +7,7 @@ using ERP.GC.Presentation.Models;
 using ERP.GC.Presentation.Services;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -22,20 +23,18 @@ namespace ERP.GC.Presentation.Configuration
             services.AddDbContext<AuthDbContext>(options =>
                 options.UseSqlServer(configuration.GetConnectionString("SQLConnection")));
 
-            services.AddIdentity<IdentityUser<int>, IdentityRole<int>>()
+            services.AddIdentity<Usuario, IdentityRole<int>>()
                 .AddEntityFrameworkStores<AuthDbContext>();
         }
 
         public static void AddDependencies(this IServiceCollection services)
         {
             services.AddScoped<IAuthenticationService, AuthenticationService>();
-            services.AddScoped<IRequestHandler<AdicionarUsuarioCommand, Usuario>, UsuarioCommandHandler>();
             services.AddScoped<IRequestHandler<AdicionarEmpresaCommand, Empresa>, EmpresaCommandHandler>();
 
             services.AddScoped<IMediator, Mediator>();
             services.AddScoped<INotificador, Notificador>();
 
-            services.AddScoped<IUsuarioRepository, UsuarioRepository>();
             services.AddScoped<IEmpresaRepository, EmpresaRepository>();
         }
 
@@ -81,6 +80,25 @@ namespace ERP.GC.Presentation.Configuration
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwt.SecretKey)), // Define a chave secreta usada para validar a assinatura do token.
                 };
             });
+        }
+
+        /// <summary>
+        /// Configura políticas de autorização baseadas em Cargo (AdministradorGeral, Gestor, Colaborador).
+        /// - PodeCriarEmpresa: apenas AdministradorGeral.
+        /// - PodeCriarUsuario: AdministradorGeral ou Gestor (Gestor só pode criar usuários da própria empresa; validar no controller).
+        /// </summary>
+        public static void AddAuthorizationConfig(this IServiceCollection services)
+        {
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("PodeCriarEmpresa", policy =>
+                    policy.AddRequirements(new CargoRequirement(Cargo.AdministradorGeral)));
+
+                options.AddPolicy("PodeCriarUsuario", policy =>
+                    policy.AddRequirements(new CargoRequirement(Cargo.AdministradorGeral, Cargo.Gestor)));
+            });
+
+            services.AddScoped<IAuthorizationHandler, CargoAuthorizationHandler>();
         }
 
         public static void AddSwaggerConfig(this IServiceCollection services)
